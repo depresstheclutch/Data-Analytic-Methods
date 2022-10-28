@@ -1,0 +1,354 @@
+---
+title: "Group-4 BSMM8740 Project - Canadian Internet Usage Survey - Location Data"
+author: "Group-4"
+date: '2022-10-25'
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+---
+# 1 List of libraries used in this project
+```{r include=FALSE}
+library(stargazer)
+library(dplyr)
+library(gmodels)
+library(epiDisplay)
+library(ggplot2)
+library(kableExtra)
+library(xtable)
+library(janitor)
+library(naniar)
+library(summarytools)
+```
+
+# 2 Introduction
+## 2.1 Data set overview
+The dataset used as part of this analysis is **Canadian Internet Use Survey (CIUS)** and it provides information on the adoption, use and the location of access to the internet of the individuals greater than 15 years of age living in ten provinces of Canada. There are 23 dimensions available in the data set which include information on factors like province, region,age,gender, education levels, internet usage and their accessibility.
+
+The above data can be used to perform evidence-based policy-making, research and program development, and also provide internationally comparable statistics on the use and access trends of the internet in Canada.
+
+Some of the advantages include
+
+- Guide government efforts to provide households with more reliable and affordable high-speed Internet
+- Develop policies to protect individuals from online privacy and security risks
+- Identify barriers that prevent people from accessing the Internet and making the most of new technology
+- Contribute to international initiatives, such as the United Nations Sustainable Development Goals and the OECD Going Digital Project, to help track and compare Canada's digital development
+
+*Additional information about the CIUS data set can be found here [Link](https://www23.statcan.gc.ca/imdb/p2SV.pl?Function=getSurvey&SDDS=4432)*
+
+## 2.2 Analysis approach overview
+The dataset **Canadian Internet Use Survey (CIUS)** used as part of this analysis is a categorical dataset which contains mostly nominal and ordinal variables. So as part of our analysis, we would like to use contingency tables, relative frequency tables,bar charts etc. for exploratory analysis and logistic and chi-square tests for predictive analysis to understand the relation between the variables and draw conclusions.  
+
+# 3 Pre-Processing the data
+Before conducting any analysis, the dataset required pre-processing, so we used a few pre-processing techniques to enhance the dataset analysis.
+
+## 3.1 Check for missing values
+We checked if the dataset already has any missing values that might hinder our analysis
+```{r eval=FALSE}
+sapply(locationofUse, function(x) sum(is.na(x)))
+```
+
+## 3.2 Renaming columns
+The variable names in the dataset were unclear and were coded in accordance with the needs of the survey to be compatible with their processing systems. It is not practical to interpret the data using the coded variable headers. Therefore, we changed the header names to a more comprehensible and meaningful format.
+```{r include=FALSE}
+locationofUse <- read.csv("~/locationofUse.csv")
+# Renames all the columns specified below
+locationofUse <-
+  locationofUse %>% rename(
+    "Customer ID" = "PUMFID",
+    "Province" = "PROVINCE",
+    "Region" = "REGION",
+    "Community" = "G_URBRUR",
+    "Age" = "GCAGEGR6",
+    "Gender" = "CSEX",
+    "Education" = "G_CEDUC",
+    "Student_Status" = "G_CSTUD",
+    "Employment" = "G_CLFSST",
+    "Houshold_Type" = "GFAMTYPE",
+    "House_Size" = "G_HHSIZE",
+    "Household_Education" = "G_HEDUC",
+    "Student_Household" = "G_HSTUD",
+    "Internet_User" = "EV_Q01",
+    "Internet_Usage_Years" = "EV_Q02",
+    "Internet_Usage_Home" = "LU_Q01",
+    "Internet_Usage_Work" = "LU_Q02",
+    "Internet_Usage_School" = "LU_G03",
+    "Internet_Usage_Library" = "LU_Q04",
+    "Internet_Usage_Others" = "LU_Q05",
+    "Internet_Usage_Relatives" = "LU_Q06A",
+    "Internet_Usage_Neighbours" = "LU_Q06B",
+    "Internet_Others" = "LU_G06",
+  )
+```
+## 3.2 Reassigning data levels
+This dataset has 23 different dimensions and each of these variables have different levels. So, for better interpretation we have reassigned few levels in the dataset. Starting with `2[NO]` as `0`, `6,7,8,9` as `NA` and would interpret all of them as other category. The already existing `1[YES]` is interpreted as `1`.
+```{r include=FALSE}
+# This reassigns values 6,7,8,9 to 'NA' and 2 to '0' for the columns in the dataset.
+Recode_columns <- function(startcol, endCol) {
+  for (i in startcol:endCol) {
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 2, 0, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 6, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 7, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 8, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 9, NA, locationofUse[, i])
+  }
+}
+# Function call - This calls the function 'Recode_columns' and parses startcol and endcol values. 
+Recode_columns(16, 23)
+```
+
+
+## 3.3 Changing the datatype
+After processing, R interpreted the data in this dataset as integer and numeric datatype for different variables. This can cause an issue while working with categorical variables because integer and numeric variables are generally continuous in nature but the categorical once here are discrete which can cause logic issues while executing the code. So, we will be using `as.character`, `as.factor` build in function to change the integer data type from an integer to a character and factor when appropriate for code execution.
+```{r eval=FALSE}
+#Change the datatype to character for the mentioned columns 
+locationofUse <- locationofUse %>% mutate_at(c('column name(s)'), as.character)
+```
+
+# 4 Exploratory Analysis
+As part of exploratory analysis we wanted to understand each of the individual dimensions and their underlying structures and optimize our model development to get maximum insights from the available data.
+
+## 4.1 Understanding Provincial information with a Frequency table
+The objective of using this frequency table is to understand how many times a province was selected by customers. This can be done by taking a count of each province in the table. Based on this we would like to understand which **provinces and their occurrence**.This data can used to understand the dynamics of the provinces like the total observations, least and highest repeated provinces in the dataset, each province's customer count contribution to the dataset.
+```{r echo=TRUE}
+# Bind the frequency, cumulative and relative frequency of the provinces
+cbind(
+  Frequency = table(locationofUse$Province),
+  Cummulative_Frequency = cumsum(table(locationofUse$Province)),
+  Relative_Frequency = prop.table(table(locationofUse$Province))
+  ) %>%
+  kable(caption = " Table:1 A Frequency Table on Provinces") %>%
+  kable_classic(font_size = "13", full_width = F)
+```
+
+### 4.1.1 Findings
+- We found that `Ontario [35]` was the most selected province by the respondents in the survey with an occurrence of `6518` times and it had a relative frequency of `0.28`.
+
+- We found that `Prince Edward Island [11]` was the least selected province by the respondents in the survey with the lowest occurrence of `592` and with a relative frequency of `0.02`.
+
+- We also found that `Ontario` is followed by `Quebec [24]`, `British Colombia [59]`, and `Alberta [48]` with frequencies `4437`,`2533`,`2242` and relative frequencies `0.19`,`0.10`,`0.09` respectively.
+
+## 4.2 Understanding Education levels based on province using Pivot table
+The objective of using the below pivot table is to summarize and organize education levels based on the provinces. This would help us understand how **education levels are distributed among different provinces**. Based on the findings we can have an understanding on what level of education do respondents hold in different provinces which can provide supporting and additional information on which province's respondents has highest and lowest education levels and what are their percentages. 
+```{r echo=TRUE}
+locationofUse %>%
+  tabyl(Province, Education) %>%
+  adorn_totals(c("row", "col")) %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  kable(caption = "Table:2 A Pivot Table on Provinces and Education") %>%
+  kable_classic(font_size = "13")
+  
+```
+
+### 4.2.1 Findings
+- We found that in all the `10` provinces `39.2% [9082]` respondents have `high school level or less education [1]` in which `British Colombia [59]` has the least number of respondents `33.4% [847]` that have level [1] education and also `Manitoba [46]` has the highest count of respondents `43.4% [699]` that have level [1] education.
+
+- We found that in all the `10` provinces `42.1% [9753]` respondents have `College or some post-secondary level education [2]` in which `Prince Edward Island [11]` has the highest number of respondents `45.8% [271]` that have level [2] education and also `Manitoba [46]` has the lowest count of respondents `39.2% [699]` that have level [1] education.
+
+- Finally, We found that in all the `10` provinces `18.7% [4343]` respondents have `University Certificate or degree [3]` in which `Newfoundland and Labrador [10]` has the least number of respondents `12.5% [110]` that have level [3] education and also `British Colombia [59]` has the highest count of respondents `21.7% [550]` that have level [3] education.
+
+## 4.3 Understanding internet users accross the regions
+ We wanted to understand which region has the highest number of users who have ever used the Internet (E-mail or World Wide Web) from home, work, school, or any other location for personal non-business use. Based on this we can identify in which region are most Internet users concentrated in.
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_Userset <- locationofUse[c(3, 14)]
+# Change the datatype of the variables for processing
+Internet_Userset$Internet_User <-
+  as.character(Internet_Userset$Internet_User)
+Internet_Userset$Region <-
+  as.character(Internet_Userset$Region)
+# Create a plot with Internet users and region variables
+Internet_Userset %>%
+  filter(Internet_User == "1") %>% # filter on values
+  ggplot(aes(Region, ..count..)) + geom_bar(aes(fill = Internet_User),
+                                            position = "dodge2" ,
+                                            show.legend = FALSE) + ggtitle("Fig: 1 Internet Users Across the Regions") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(x =
+                                                                                   "Region", y = "Count") +
+  scale_x_discrete(
+    labels = c(
+      "1" = "Atlantic Regions",
+      "2" = "Quebec",
+      "3" = "Ontario",
+      "4" = "Manitoba/Saskatchewan",
+      "5" = "Alberta",
+      "6" = "British Columbia"
+    )
+  ) +
+  geom_bar(fill = "00BFC4")
+```
+
+### 4.3.1 Findings
+ We found that `Ontario` followed by `Quebec` has the highest count of users who have used internet for personal non-business users.
+
+## 4.4 Understanding internet usage at home by province
+ We wanted to understand based on the survey, if the respondents have used internet for personal non-business related use from their home. These results can help us understand if respondents are using internet at home for recreational/personal use. Based on this we can identify which province has the most number of internet users who prefer to use internet from home for personal use. This can further be combined with other variables to understand the rise of home internet usage in recent years.
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_Province <- locationofUse[c(2, 16)]
+# Change the datatype of the variables for processing
+Internet_Province$Internet_Usage_Home <-
+  as.character(Internet_Province$Internet_Usage_Home)
+Internet_Province$Province <-
+  as.character(Internet_Province$Province)
+# Create a plot with Internet usage at home and province variables
+Internet_Province %>%
+  filter(Internet_Usage_Home != "NA" & Internet_Usage_Home != "0") %>% # filter on non-missing values
+  ggplot(aes(Province, ..count..)) +geom_bar(aes(fill = Internet_Usage_Home),
+                                            position = "dodge2" ,
+                                            show.legend = FALSE) + ggtitle(" Fig: 2 Internet Usage At Home by Province") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(x =
+                                                                                   "Province", y = "Internet Users") +
+     scale_x_discrete(
+    labels = c(
+      "10" = "NL",
+      "11" = "PE",
+      "12" = "NS",
+      "13" = "NB",
+      "24" = "QC",
+      "35" = "ON",
+      "46" = "MB",
+      "47" = "SK",
+      "48" = "AB",
+      "59" = "BC"
+    )
+  ) +
+  geom_bar(fill = "00BFC4")
+```
+
+### 4.4.1 Findings
+ We found that `Ontario [ON]` followed by `Quebec [QC]` provinces have the most number of Internet users for personal non-business use from home which are close to `5000` and `3000` users respectively.
+ 
+## 4.5 Understanding number of years of internet use across provinces
+We wanted to understand if respondent has used internet, how many years have they used them and in which province. Based on this we can identify how many users (respondents) belong to which section of the usage years like if its less than `1 year`, or `1 to 2`, or `2 to 5 years`, or greater than `5 years`. This can further analysed based on usage patterns like [Home, work,school] etc. for further analysis.   
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_yearsset <- locationofUse[c(2, 15)]
+# Change the datatype of the variables for processing
+Internet_yearsset$Province <-
+  as.character(Internet_yearsset$Province)
+Internet_yearsset$Internet_Usage_Years <-
+  as.character(Internet_yearsset$Internet_Usage_Years)
+# Change the values 6,7,8 in this subset to NA
+Internet_yearsset[Internet_yearsset == "6" |
+                    Internet_yearsset == "7" | Internet_yearsset == "8"] <- NA
+# Create a plot with internet usage years and provinces
+Internet_yearsset %>%
+  filter(!is.na(Internet_Usage_Years)) %>% # filter values
+  ggplot(aes(Province, ..count..)) + geom_bar(aes(fill = Internet_Usage_Years), position = "stack") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(title = " Fig:3 Internet Usage Years Across the Provinces", x = "Provinces", y =
+         "Count") +
+  scale_x_discrete(
+    labels = c(
+      "10" = "Newfoundland and Labrador",
+      "11" = "Prince Edward Island",
+      "12" = "Nova Scotia",
+      "13" = "New Brunswick ",
+      "24" = "Quebec",
+      "35" = "Ontario",
+      "46" = "Manitoba",
+      "47" = "Saskatchewan",
+      "48" = "Alberta",
+      "59" = "British Columbia"
+    )
+  ) +
+  scale_fill_discrete(name = "Internet Usage Years", labels = c("<1", "1-2", "2-5", ">5")) +
+  coord_flip()
+```
+
+### 4.5.1 Findings
+- We found that a significant portion of the users  in all the `10` provinces have been using internet for more than `5` years and in that respondents of `Ontario` province has the largest user set with a count of `4000` respondents using Internet for greater than five years.
+- We found that very less respondents have been using internet for less than a year in all the provinces.
+- We also found that `Ontario` and `Quebec` has the most number of users who have been using internet for a minimum of `2` years and more.
+- Finally, we found that `Prince Edward Islands` has the lowest user count `<1000` who have been using internet greater than `5` years.
+
+## 4.6 Understanding the internet usage from work
+ We wanted to find how many respondents who are employed where using internet for personal non-business use from work place.
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_Workset <- locationofUse[c(9,17)]
+# Change the datatype of the variables for processing
+Internet_Workset$Internet_Usage_Work <-
+  as.character(Internet_Workset$Internet_Usage_Work)
+Internet_Workset$Employment <-
+  as.character(Internet_Workset$Employment)
+#Create a plot with internet usage frequency who are employed
+Internet_Workset %>%
+  filter(!is.na(Internet_Usage_Work) & Employment == "1") %>% # filter on non-missing values
+  ggplot(aes(Internet_Usage_Work,
+             ..count..)) + geom_bar(aes(fill = Employment), position = "dodge2", show.legend = FALSE)+ theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(title=" Fig: 4 Internet Usage At Work",
+                                                                                       x="Internet Usage at Work", y= "Employee count") + 
+  scale_x_discrete(labels=c("0" = "No", "1" = "Yes"))
+```
+
+### 4.6.1 Findings
+- We found that the respondents who are employed and who where using the internet for personal use from workplace are more than `6000` for all provinces and who are not using are around `5500`.
+
+## 4.7 Understanding internet usage amoung different age groups
+As part of this analysis we want to understand how different age groups of respondents use internet. This will help us understand which age group has been using the internet or world wide web services more than the other. This can further be analysed on how individual age category uses internet at home, work, school, and other places.
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_ageset <- locationofUse[c(5, 14)]
+# Change the datatype of the variables for processing
+Internet_ageset$Internet_User <-
+  as.character(Internet_ageset$Internet_User)
+Internet_ageset$Age <-
+  as.character(Internet_ageset$Age)
+#Create a plot with internet user and age
+Internet_ageset %>%
+  filter(!is.na(Internet_User) &
+           Internet_User == "1") %>% # filter values
+  ggplot(aes(Age, ..count..)) + geom_bar(aes(fill = Internet_User), show.legend = FALSE) + theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) +
+  labs(title = " Fig:5 Internet Users Among Different Age Groups", x = "Age Groups", y =
+         "Count") +
+  scale_x_discrete(labels = c(
+    "1" = "16-24",
+    "2" = "25-34",
+    "3" = "35-44",
+    "4" = "45-54",
+    "5" = "55-64",
+    "6" = ">65"
+  ))
+```
+
+### 4.7.1 Findings
+- We found that the age group `45-54` was the group that used the internet the most with a count of almost `4000` users.
+- We also found that the age group `greater than 65` was the group that used the internet the least with a count of around `2000` users.
+- Finally, we also found that the age ground `16-24` and ` greater than 65` were using internet the same with a count of around `2000` users.
+
+## 4.8 Understanding education levels based on age using contingency table
+We want to analyse the frequency distribution of combination of educations and age variables. This will help us compare values from different data categories.
+```{r echo=TRUE}
+# Create a contingency table
+CrossTable(locationofUse$Gender, locationofUse$Education)
+```
+
+### 4.8.1 Findings
+- From the above contingency table we found that `males [1]` with `high school or less education [1]` in all the provinces are `4012` and `females [2]` with same level of education are `5070` totaling to around `9082` males and females with education levels high school or less.
+- We found that `males` with `college or some post secondary level education [2]` in all provinces are `4357` and `females [2]` with same level of education are `5396` totaling to `9753` males and females with post secondary level education.
+- Finally, we found that `males` with `university degree or certificate [3]` in all provinces are `1993` and `females [2]` with same level of education are `2351` totaling to `4343` males and females with university level education.
+- The lowest count was males with university level education and highest was females with secondary level education.
+
+## 4.9 Understanding student status based on gender using mosaic plot
+We want to visually analyse the proportions of different types of combinations between the variables gender and student status whether the respondent is student or not.
+```{r echo=TRUE}
+counts <- table(locationofUse$Student_Status, locationofUse$Gender)
+#create mosaic plot
+mosaicplot(counts, xlab='Education', ylab='Gender',
+           main='Gender vs Education', col='#fb8072')
+```
+
+### 4.9.1 Findings
+ - We found that the respondents who are `males [1]` and are `student [1]` are the least and `males [1]` respondents who are `not student [2]` are in significant number [ based on visual interpretation].
+ - We found that the respondents who are `females [2]` and are `student [1]` are the least and `females [2]` respondents who are `not student [2]` are in significant number [ based on visual interpretation].
+
+
