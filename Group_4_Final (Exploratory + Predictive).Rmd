@@ -1,0 +1,1390 @@
+---
+title: "Group-4 Project - Canadian Internet Usage Survey - Location Data"
+author: "Group-4"
+date: "30-11-2022"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    theme: united
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+*Group Members: Nithin Reddy Padicherla, Chegu Hitesh Sai Sushanth, Tirumala Naga sai Gottumukkala, Sai Pavani Gutha, Susenthar Raj Jegadeesh Chandra Bose*
+
+# 1. List of libraries used in this project
+
+The list of libraries that we utilized to make tables, format material, and style graphs for our exploratory analysis is provided below.
+```{r warning=FALSE,message=FALSE }
+# List of all the libraries used in this project
+library(stargazer)
+library(dplyr)
+library(gmodels)
+library(epiDisplay)
+library(ggplot2)
+library(kableExtra)
+library(xtable)
+library(janitor)
+library(naniar)
+library(summarytools)
+library(vcd)
+library(prettydoc)
+library(caTools)
+library(ROCR)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(rms)
+library(lmtest)
+library(caret)
+library(cvms)
+library(tibble)
+library(brms)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+
+```
+
+# 2. Introduction
+
+## 2.1 Data set overview
+
+The **Canadian Internet Use Survey (CIUS)**, which provides statistics on the adoption, use, and location of internet access for people older than 15 living in Canada's ten provinces, was used as the dataset for this analysis. The data set has 23 dimensions, which include information on variables like province, area, age, gender, education levels levels, internet use, and their accessibility.
+
+The aforementioned data can be examined using various exploratory and predictive analysis techniques, and the findings can be applied to conduct evidence-based policy-making, resource management, and development planning in all of the provinces, as well as provide internationally comparable statistics on the use and access trends of the internet in Canada.
+
+Some of the benefits include
+
+-   Guide government efforts to provide households with more reliable and affordable high-speed Internet.
+-   Develop policies to protect individuals from online privacy and security risks.
+-   Identify barriers that prevent people from accessing the Internet and making the most of new and emerging internet technology.
+-   Contribute to international initiatives, such as the United Nations Sustainable Development Goals and the OECD Going Digital Project, to help track and compare Canada's digital development.
+
+*Additional information about the CIUS data set can be found here [Link](https://www23.statcan.gc.ca/imdb/p2SV.pl?Function=getSurvey&SDDS=4432)*
+
+## 2.2 Data Research
+
+According to our preliminary analysis, the implementation of public programs depends on evidence-based policy formulation. The Internet usage data in this case contains a number of characteristics that can be used to interpret and evaluate different aspects of how the general public uses the internet.
+
+- Analyzing where the survey respondents live like `region` and `province` can reveal information the usage patterns of the individuals based on the location.
+
+- Analyzing the physiological variables like `age` and `gender` can help us understand the influencing factors on the personality of the respondents which can eventually combined with Internet usage patterns in different regions to gain useful insights.
+
+- Also, analyzing the `educational` and `employement` status can reveal information on the specific purposes of the use of internet like educational research and workplace usages.
+
+- Finally analyzing on how many years did the respondents use internet and where have they used them from, like `work`,from `home`,from `school`,from `public library` or from a ` friends` place can reveal information on the pattern of usage at all these different places, and their purposes. Combining them with `regional`, `educational` and `physiological` variables that are available above can provide detailed and specific insights into the usage dynamics of the respondents.    
+
+
+## 2.3 Analysis approach overview
+
+The dataset **Canadian Internet Use Survey (CIUS)** used as part of this analysis is a categorical dataset which contains mostly nominal and ordinal variables. So as part of our analysis, we would like to use contingency tables, relative frequency tables,bar charts, mosaic plots, density plots etc. for exploratory analysis. Along with that we also are considering logistic and chi-square tests for predictive analysis to understand the relation between the variables and draw effective conclusions and provide recommendations.
+
+# 3. Pre-processing the data
+
+Before conducting the analysis, this dataset required pre-processing, so we used a few pre-processing techniques to enhance the dataset and improve our results efficiency.
+
+## 3.1 Renaming columns
+
+The variable names in the dataset were unclear and were encoded in accordance with the needs of the survey to be compatible with their processing systems. It is not practical to interpret the data using the encoded variable headers. Therefore, we changed the header names to a more comprehensible and meaningful format.
+
+```{r}
+# Renames all the columns specified below
+locationofUse <- read.csv("~/University of Windsor/locationofUse.csv")
+locationofUse <-
+  locationofUse %>% rename(
+    "Customer ID" = "PUMFID",
+    "Province" = "PROVINCE",
+    "Region" = "REGION",
+    "Community" = "G_URBRUR",
+    "Age" = "GCAGEGR6",
+    "Gender" = "CSEX",
+    "Education" = "G_CEDUC",
+    "Student_Status" = "G_CSTUD",
+    "Employment" = "G_CLFSST",
+    "Houshold_Type" = "GFAMTYPE",
+    "House_Size" = "G_HHSIZE",
+    "Household_Education" = "G_HEDUC",
+    "Student_Household" = "G_HSTUD",
+    "Internet_User" = "EV_Q01",
+    "Internet_Usage_Years" = "EV_Q02",
+    "Internet_Usage_Home" = "LU_Q01",
+    "Internet_Usage_Work" = "LU_Q02",
+    "Internet_Usage_School" = "LU_G03",
+    "Internet_Usage_Library" = "LU_Q04",
+    "Internet_Usage_Others" = "LU_Q05",
+    "Internet_Usage_Relatives" = "LU_Q06A",
+    "Internet_Usage_Neighbours" = "LU_Q06B",
+    "Internet_Others" = "LU_G06",
+  )
+```
+
+## 3.2 Check for missing values
+
+We checked if the dataset already has any missing values that might hinder our analysis and we found no missing values.
+
+```{r eval=FALSE}
+# check if there are any missing values
+sapply(locationofUse, function(x) sum(is.na(x)))
+```
+
+## 3.3 Reassigning data levels
+
+This dataset has 23 different dimensions and each of these variables have different levels. So, for better interpretation and analysis we have reassigned few levels in the dataset. Starting with `2[NO]` as `0`, `6,7,8,9` as `NA` for the columns 16 to 23 and would interpret all of the values as other category. The already existing `1[YES]` is interpreted as `1` with no change.
+
+```{r}
+# This reassigns values 6,7,8,9 to 'NA' and 2 to '0' for the columns in the dataset.
+Recode_columns <- function(startcol, endCol) {
+  for (i in startcol:endCol) {
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 2, 0, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 6, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 7, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 8, NA, locationofUse[, i])
+    locationofUse[, i] <<-
+      ifelse(locationofUse[, i] == 9, NA, locationofUse[, i])
+  }
+}
+# Function call - This calls the function 'Recode_columns' and parses startcol and endcol values. 
+Recode_columns(16, 23)
+```
+
+## 3.4 Changing the datatype
+
+After processing, R interpreted the data in this dataset as integer and numeric datatype for different variables. This can cause an issue while working with categorical variables because integer and numeric variables are sometimes interpreted as continuous in nature but the categorical once here are discrete which can cause logic issues while executing the code. So, we will be using `as.character`, `as.factor` build in functions to change the integer data type from an integer to a character or a factor when appropriate.
+
+```{r eval=FALSE}
+#Change the datatype to character or factor for the mentioned columns 
+locationofUse <- locationofUse %>% mutate_at(c('column name(s)'), as.character)
+#or
+locationofUse <- locationofUse %>% mutate_at(c('column name(s)'), as.factor)
+```
+
+# 4. Exploratory Analysis
+
+As part of exploratory analysis we wanted to understand all the individual dimensions and their underlying patterns and develop an effective analysis to get maximum insights from the available data.
+
+## 4.1 Analysing provincial information with a frequency table
+
+This frequency table's purpose is to show how frequently a particular province was chosen by clients. we can accomplish this by counting each province in the table. Based on this we would like to understand which provinces was selected the most. This data can also used to understand the dynamics of the provinces like the total observations, least and highest repeated provinces in the dataset, and each province's respondent count contribution to the dataset.
+
+```{r echo=TRUE}
+# Bind the frequency, cumulative and relative frequency of the provinces
+cbind(
+  Frequency = table(locationofUse$Province),
+  Cummulative_Frequency = cumsum(table(locationofUse$Province)),
+  Relative_Frequency = prop.table(table(locationofUse$Province))
+  ) %>%
+  kable(caption = " Table:1 A Frequency Table on Provinces") %>%
+  kable_classic(font_size = "13", full_width = F)
+```
+
+### 4.1.1 Findings
+
+-   We found that `Ontario [35]` was the most selected province by the respondents in the survey with an occurrence of `6518` times and it had a relative frequency of `0.28`.
+-   We found that `Prince Edward Island [11]` was the least selected province by the respondents in the survey with the lowest occurrence of `592` and with a relative frequency of `0.02`.
+
+-   We also found that `Ontario[11]` is followed by `Quebec [24]`, `British Colombia [59]`, and `Alberta [48]` with occurrences of `4437`,`2533`,`2242` and relative frequencies `0.19`,`0.10`,`0.09` respectively.
+
+### 4.1.2 Explanation
+
+One of the reasons for `Ontario [35]` being the highest occurrence may be possibly due to the volume of respondents responding the survey might have highly been from the province and it also may have to do with the population of the region [highest populated province in Canada]. This reasoning might also be valid for `Prince Edward Island [11]` being selected the least number of times and so on for the other provinces.
+
+## 4.2 Analysing the distribution of the age of respondents
+The objective of using the density plot is to help us understand the distribution of the age of the respondents of this survey, which helps us in providing the probability density function of the `age` of the survey respondents. This can further be combined and analysed on how different age sections in the data set are in relation with the region/province and gender. 
+
+```{r echo=TRUE}
+# Filled Density Plot
+dplot_variable <- density(locationofUse$Age)
+plot(dplot_variable,xlab=" Fig:1 Age Ranges of Respondents", main="Age Distribution of Respondents ")
+polygon(dplot_variable, col="#fb8072", border="black") 
+
+```
+
+### 4.2.1 Findings
+-  We found that respondents above `65 or older [6]` are the once with the highest amount of density around `0.49`, which shows that people in this age range are the once that mostly responded to this survey and their data is the largest part of this  survey.
+
+- We found that respondents from the `16 to 24 [1]` are the once with least density in the dataset of around `0.20`, which shows that the people in this age range are the once that least responded to this survey and contribute the least amount of responses.
+
+- Finally, We also found that respondents of age `45 to 54 [4]` and `55 to 64 [5]` are around the same density of `0.40` in this survey, which shows that their responses are almost the same in number.
+
+### 4.2.2 Explanation
+One of the reasons for a higher density of respondents above the age of `45` may be due to the fact that the average age of respondents who take internet surveys is around `53.51` years according to *(Price, 2012)*. So, there is higher probability that respondents who mostly take surveys can be in a higher number when their age is more than 50 years.
+
+
+## 4.3 Analysing education levels based on province using pivot table
+
+The objective of using the below pivot table is to summarize and organize education levels based on the provinces. This would help us understand how education levels are distributed among different provinces. Based on the findings we can have an understanding on what level of education do respondents hold in different provinces which can provide supporting and additional information on which province's respondents has highest and lowest education levels and what are their percentages.
+
+```{r echo=TRUE}
+#Create a pivot table with province and education as variables
+locationofUse %>%
+  tabyl(Province, Education) %>%
+  adorn_totals(c("row", "col")) %>%
+  adorn_percentages("row") %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  kable(caption = "Table:2 A Pivot Table on Provinces and Education") %>%
+  kable_classic(font_size = "13")
+  
+```
+
+### 4.3.1 Findings
+
+-   We found that in all the `10` provinces `39.2% [9082]` respondents have `high school level or less education [1]` in which `British Colombia [59]` has the least number of respondents `33.4% [847]` that have level [1] education and also `Manitoba [46]` has the highest count of respondents `43.4% [699]` that have level [1] education.
+
+-   We found that in all the `10` provinces `42.1% [9753]` respondents have `College or some post-secondary level education [2]` in which `Prince Edward Island [11]` has the highest number of respondents `45.8% [271]` that have level [2] education and also `Manitoba [46]` has the lowest count of respondents `39.2% [699]` that have level [1] education.
+
+-   Finally, We found that in all the `10` provinces `18.7% [4343]` respondents have `University Certificate or degree [3]` in which `Newfoundland and Labrador [10]` has the least number of respondents `12.5% [110]` that have level [3] education and also `British Colombia [59]` has the highest count of respondents `21.7% [550]` that have level [3] education.
+
+### 4.3.2 Explanation
+
+- The reason for almost half of the respondents in all the 10 provinces have college or some post-secondary level education is mainly because education system in Canada mandates students to stay in school till the age of `16` and in some provinces like Nova Scotia, Manitoba, New Brunswick till the age of `18`(Nair, 2022). So, that may be the reason why significant portion have a college degree.
+
+## 4.4 Analysing internet users across the regions
+
+Our objective is to understand which region has the highest number of users who have ever used the Internet (E-mail or World Wide Web) from home, work, school, or any other location for personal non-business use. Based on this we can identify in which region has the most Internet users concentrated in.
+
+```{r echo=TRUE, warning=FALSE}
+#Create a subset for the columns
+Internet_Userset <- locationofUse[c(3, 14)]
+# Change the datatype of the variables for processing
+Internet_Userset$Internet_User <-
+  as.character(Internet_Userset$Internet_User)
+Internet_Userset$Region <-
+  as.character(Internet_Userset$Region)
+# Create a plot with Internet users and region variables
+Internet_Userset %>%
+  filter(Internet_User == "1") %>% # filter on values
+  ggplot(aes(Region, ..count..)) + geom_bar(aes(fill = Internet_User),
+                                            position = "dodge2" ,
+                                            show.legend = FALSE, colour="Black") + ggtitle("Fig:2 Internet Users Across the Regions") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(x =
+                                                                                   "Region", y = "Count") +
+  scale_x_discrete(
+    labels = c(
+      "1" = "Atlantic Regions",
+      "2" = "Quebec",
+      "3" = "Ontario",
+      "4" = "Manitoba/Saskatchewan",
+      "5" = "Alberta",
+      "6" = "British Columbia"
+    )
+  ) +
+  geom_bar(fill = "00BFC4")
+```
+
+### 4.4.1 Findings
+
+- We found that `Ontario[3]` followed by `Quebec[2]` regions has the highest count of users who have used internet [e-mail or world wide web] from home, work, school or other locations for personal non-business users and their count is above `5000` and above `3000` respectively.
+
+- We also found that `Atlantic` and `Manitoba/Saskatchewan[4]` regions had similar user counts of around `2700` users using internet for personal non-business purposes.
+
+- Finally we also found that `Alberta[5]` region had the lowest count of internet users of around `1800` who used internet for personal non-business purposes.
+
+### 4.4.2 Explanation
+
+One of the reasons for `Ontario [1]` and `Quebec[2]` regions have the highest occurrence may be possibly due to the volume of respondents responding the survey might have highly been from the province and it also may have to do with the population of the provinces [1st and 2nd most highly populated provinces in Canada].
+
+## 4.5 Analysing internet usage at home by province
+
+Our objective is to understand based on the survey, if the respondents have used internet for personal non-business related use from their home. These results can help us understand if respondents are using internet at home for recreational/personal use. Based on this we can identify which province has the most number of internet users who prefer to use internet from home for personal use. This can further be combined with other variables to understand the rise of home internet usage in recent years.
+
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_Province <- locationofUse[c(2, 16)]
+# Change the datatype of the variables for processing
+Internet_Province$Internet_Usage_Home <-
+  as.character(Internet_Province$Internet_Usage_Home)
+Internet_Province$Province <-
+  as.character(Internet_Province$Province)
+# Create a plot with Internet usage at home and province variables
+Internet_Province %>%
+  filter(Internet_Usage_Home != "NA" & Internet_Usage_Home != "0") %>% # filter on non-missing values
+  ggplot(aes(Province, ..count..)) +geom_bar(aes(fill = Internet_Usage_Home),
+                                            position = "dodge2" ,
+                                            show.legend = FALSE, colour="Black") + ggtitle(" Fig:3 Internet Usage At Home by Province") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(x =
+                                                                                   "Province", y = "Internet Users") +
+     scale_x_discrete(
+    labels = c(
+      "10" = "NL",
+      "11" = "PE",
+      "12" = "NS",
+      "13" = "NB",
+      "24" = "QC",
+      "35" = "ON",
+      "46" = "MB",
+      "47" = "SK",
+      "48" = "AB",
+      "59" = "BC"
+    )
+  ) +
+  geom_bar(fill = "00BFC4")
+```
+
+### 4.5.1 Findings
+
+- We found that `Ontario [ON]` followed by `Quebec [QC]` provinces have the most number of Internet users for personal non-business use from home which are close to `5000` and `3000` users respectively.
+
+- we found that `British Columbia [BC]` was the next province that had a user count of around `2000` who used internet at home.
+
+- we found that `Newfoundland [NL]`, `Prince Edward Islands [PE]`, `Nova Scotia [NS]`, and `New Brunswick [NB]` where the only provinces that had a user count of below `1000` users using internet usage at home for personal non-business purposes.
+
+### 4.5.2 Explanation
+
+Similar reason like population density might apply to this finding as well for `Ontario` and `Quebec` having the most number of Internet users for personal use. Along with that as regions tend to advance and modernize so does there communications means. This can include social media, shopping, online entertainment, information seeking etc. which can eventually mean more of internet usage for personal non-business uses in the regions.
+
+## 4.6 Analysing number of years of internet use across provinces
+
+Our objective is to understand if respondent has used internet, how many years have they used them and in which province. Based on this we can identify how many users (respondents) belong to which section of the usage years like if its less than `1 year`, or `1 to 2`, or `2 to 5 years`, or greater than `5 years`. This can further analysed based on usage patterns like [Home, work,school] etc. for further analysis.
+
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_yearsset <- locationofUse[c(2, 15)]
+# Change the datatype of the variables for processing
+Internet_yearsset$Province <-
+  as.character(Internet_yearsset$Province)
+Internet_yearsset$Internet_Usage_Years <-
+  as.character(Internet_yearsset$Internet_Usage_Years)
+# Change the values 6,7,8 in this subset to NA
+Internet_yearsset[Internet_yearsset == "6" |
+                    Internet_yearsset == "7" | Internet_yearsset == "8"] <- NA
+# Create a plot with internet usage years and provinces
+Internet_yearsset %>%
+  filter(!is.na(Internet_Usage_Years)) %>% # filter values
+  ggplot(aes(Province, ..count..)) + geom_bar(aes(fill = Internet_Usage_Years), position = "stack", colour="Black") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(title = " Fig:4 Internet Usage Years Across the Provinces", x = "Provinces", y =
+         "Count") +
+  scale_x_discrete(
+    labels = c(
+      "10" = "Newfoundland and Labrador",
+      "11" = "Prince Edward Island",
+      "12" = "Nova Scotia",
+      "13" = "New Brunswick ",
+      "24" = "Quebec",
+      "35" = "Ontario",
+      "46" = "Manitoba",
+      "47" = "Saskatchewan",
+      "48" = "Alberta",
+      "59" = "British Columbia"
+    )
+  ) +
+  scale_fill_discrete(name = "Internet Usage Years", labels = c("<1", "1-2", "2-5", ">5")) +
+  coord_flip()
+```
+
+### 4.6.1 Findings
+
+-   We found that a significant portion of the users in all the `10` provinces have been using internet for more than `5` years and in that respondents of `Ontario` province has the largest user set with a count of `4000` respondents using Internet for greater than five years.
+
+-   We found that very less respondents have been using internet for less than a year in all the provinces.
+
+-   We also found that `Ontario` and `Quebec` has the most number of users who have been using internet for a minimum of `2` years and more.
+
+-   Finally, we found that `Prince Edward Islands` has the lowest user count `<1000` who have been using internet greater than `5` years.
+
+### 4.6.2 Explanation
+
+Since Canada is already a developed country it is likely that all the province might have access to technology from a long time. This is evident with the results where in most of the provinces have longest internet usage users. That being said, `Prince Edward Islands` respondents being the least users who have used internet greater than `5 years` might be because of the population settlement speed and the density which is lower in the province. 
+
+## 4.7 Analysing the internet usage from work place
+
+Our objective is to find how many respondents who are employed where using internet for personal non-business use from work place. This will help us identify if users are using internet for personal uses at work which can help us further interpret reasons and usage patterns.
+
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_Workset <- locationofUse[c(9,17)]
+# Change the datatype of the variables for processing
+Internet_Workset$Internet_Usage_Work <-
+  as.character(Internet_Workset$Internet_Usage_Work)
+Internet_Workset$Employment <-
+  as.character(Internet_Workset$Employment)
+#Create a plot with internet usage frequency who are employed
+Internet_Workset %>%
+  filter(!is.na(Internet_Usage_Work) & Employment == "1") %>% # filter on non-missing values
+  ggplot(aes(Internet_Usage_Work,
+             ..count..)) + geom_bar(aes(fill = Employment), position = "dodge2", show.legend = FALSE, colour="Black")+ theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(title=" Fig:5 Internet Usage At Work",
+                                                                                       x="Internet Usage at Work", y= "Employee count") + 
+  scale_x_discrete(labels=c("0" = "No", "1" = "Yes"))
+```
+
+### 4.7.1 Findings
+
+-   We found that the respondents who are employed and who where using the internet for personal use from workplace are more than `6000` and who are not using are around `5500` for all provinces.
+
+### 4.7.2 Explanation
+
+The results show that a large portion of people who are employed use internet at work for personal use. This might be due to not having stringent internet usage policies at workplaces, might also be due to people wanting to finish personal tasks during office hours while work loads are low, and finally might also be to kill boredom during office hours.
+
+## 4.8 Analysing internet usage amoung different age groups
+
+As part of this analysis our objective is to understand how different age groups of respondents use internet. This will help us understand which age group has been using the internet or world wide web services more than the other. This can further be analysed on how individual age category uses internet at home, work, school, and other places.
+
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_ageset <- locationofUse[c(5, 14)]
+# Change the datatype of the variables for processing
+Internet_ageset$Internet_User <-
+  as.character(Internet_ageset$Internet_User)
+Internet_ageset$Age <-
+  as.character(Internet_ageset$Age)
+#Create a plot with internet user and age
+Internet_ageset %>%
+  filter(!is.na(Internet_User) &
+           Internet_User == "1") %>% # filter values
+  ggplot(aes(Age, ..count..)) + geom_bar(aes(fill = Internet_User), show.legend = FALSE, colour="Black") + theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) +
+  labs(title = " Fig:6 Internet Users Among Different Age Groups", x = "Age Groups", y =
+         "Count") +
+  scale_x_discrete(labels = c(
+    "1" = "16-24",
+    "2" = "25-34",
+    "3" = "35-44",
+    "4" = "45-54",
+    "5" = "55-64",
+    "6" = ">65"
+  ))
+```
+
+### 4.8.1 Findings
+
+-   We found that the age group `45-54` was the group that used the internet the most with a count of almost `4000` users.
+
+-   We also found that the age group `greater than 65` was the group that used the internet the least with a count of around `2000` users.
+
+-   Finally, we also found that the age groups `16-24` and `greater than 65` were using internet the same with a count of around `2000` users.
+
+### 4.8.2 Explanation
+
+The respondents in the age group `45-54` where the once that used the internet the most mainly because there are the working class and they where the generation that started the internet revolution so it is likely that the usage pattern of internet grew along side the generation. 
+
+## 4.9 Analysing education levels based on gender using contingency table
+
+Our objective is to analyse the frequency distribution of combination of educations and gender variables. This will help us understand how different genders get educated in different levels.
+
+```{r echo=TRUE}
+# Create a contingency table
+CrossTable(locationofUse$Gender, locationofUse$Education)
+```
+
+### 4.9.1 Findings
+
+-   From the above contingency table we found that `males [1]` with `high school or less education [1]` in all the provinces are `4012` and `females [2]` with same level of education are `5070` totaling to around `9082` males and females with education levels high school or less.
+
+-   We found that `males` with `college or some post secondary level education [2]` in all provinces are `4357` and `females [2]` with same level of education are `5396` totaling to `9753` males and females with post secondary level education.
+
+-   Finally, we found that `males` with `university degree or certificate [3]` in all provinces are `1993` and `females [2]` with same level of education are `2351` totaling to `4343` males and females with university level education.
+
+-   The lowest count was males with university level education and highest was females with secondary level education.
+
+### 4.9.2 Explanation
+
+Educational indicators show that `females [2]` tend to get more education than men in all levels of education which is clearly evident from the findings (Zechuan Deng, 2021). Some studies show that men stop continuing education for family, financial, and other personal reasons which might be the case here and research also shows that women tend to choose and hang on to education even when the stream is harder to pass. while men tend to drop out and look for other means of making a living (Guo, 2016).
+
+## 4.10 Analysing gender on age categories using mosaic plot
+
+We want to visually analyse the proportions of different age categories and their respective gender type to understand the ratios of respondents(gender types) in different age category.
+
+```{r echo=TRUE}
+counts_subset <- table(locationofUse$Age, locationofUse$Gender)
+#create mosaic plot on age vs gender
+mosaicplot(counts_subset, xlab='Age', ylab='Gender',
+           main='Fig:7 Age vs Gender', col='#00CCCC', border = "black")
+```
+
+### 4.10.1 Findings
+
+-   We found that the respondents both `male [1]` and `female [2]` are in equal proportions in the age category of `16-24 [1]` and are relatively the least number of respondents in all the age groups in the data set[ based on visual interpretation].
+
+-  We found that the `female[2]` respondents are slightly large in proportion in the age category of `25-34 [2]` than males[ based on visual interpretation].
+
+- We found similar pattern of almost equal proportion of `male [1]` and `female [2]` like in age category [1] with respondents in the category `45-54 [4]`[ based on visual interpretation].
+
+- We also found a slightly higher proportions of `female [2]` respondents similar to age category `25-34 [2]` with respondents in age category '55-65 [5]`[ based on visual interpretation].
+
+- Finally, we also found that age category `65 and older [6]` also has a higher count of `females [2]` than `males [1]` and this category respondents are the highest number of respondents in all the age groups in the data set [ based on visual interpretation]. 
+
+### 4.10.2 Explanation
+
+The findings show that there is almost equal distribution gender in the survey with just ages `25-34 [2]` and `65 and older [6]` slightly having more female respondents but the age category of people who responded to the survey are higher in the `65 and older [6]` mainly because that generation tends to show interest in answering surveys,provide feedback, and they tend to signup for such actively more often than younger generations.
+
+## 4.11 Analysing internet usage from school status based on gender
+
+We want to analyse on how many respondents have used internet in the school for personal non-business uses. This will help us understand the how each gender is using the internet facilities at school for any personal purposes. This can be further analysed and segregated into regions and province and also with additional information analysis can be done on internet usage patterns and types in school.
+
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_schoolset <- locationofUse[c(6,18)]
+# Change the datatype of the variables for processing
+Internet_schoolset$Gender <-
+  as.character(Internet_schoolset$Gender)
+Internet_schoolset$Internet_Usage_School <-
+  as.character(Internet_schoolset$Internet_Usage_School)
+#Create a plot with Internet usage, gender
+Internet_schoolset %>%
+  filter(!is.na(Internet_Usage_School)) %>% # filter values
+  ggplot(aes(Gender, ..count..)) + geom_bar(aes(fill = Internet_Usage_School), colour="Black") + theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) +
+  labs(title = " Fig:8 Internet Usage at School for Personal Use", x = "Gender", y =
+         "Count") +
+  scale_x_discrete(labels = c(
+    "1" = "Male",
+    "2" = "Female")) +
+ scale_fill_discrete(name = "Internet Usage School", labels = c("No", "Yes"))
+```
+
+### 4.11.1 Findings
+
+-   We found that overall the number of people [both males and females] using internet for personal non-business purposes in school are very `low`.
+
+-   We found that male students who use internet for personal purposes are around `500` in count and female students are around `700` in count.
+
+-  Finally, We also found that there are more number of people who have not use internet for personal purposes at school that then once that use. There are around `7500` male students who have not used school internet for personal purposes and there are around `8500` female students who have not used internet for any personal non-business purposes at school.
+
+### 4.11.2 Explanation
+
+The number of people both male and females who use internet at school for personal purposes are very low because the schools might have a stricter policies for internet access or simply the students might not have the need to use the internet at school because they might have access to technology at home. Also the students are likely disciplined enough to use school resources for the purposes they are intended. 
+
+## 4.12 Analysing internet usage from public library
+ We want to analyse the internet usage pattern of respondents at library for personal non-business usage by different age groups. This will help us understand how different age groups have used the library for internet.   
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_libraryset <- locationofUse[c(5, 19)]
+# Change the datatype of the variables for processing
+Internet_libraryset$Age <-
+  as.character(Internet_libraryset$Age)
+Internet_libraryset$Internet_Usage_Library <-
+  as.character(Internet_libraryset$Internet_Usage_Library)
+#Create a plot with internet usage library, and age group
+Internet_libraryset %>%
+  filter(!is.na(Internet_Usage_Library)) %>% # filter values
+  ggplot(aes(Age, ..count..)) + geom_bar(aes(fill = Internet_Usage_Library), colour =
+                                           "Black") + theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) +
+  labs(title = " Fig:9 Internet Usage at Library", x = "Age Groups", y =
+         "Count") +
+  scale_x_discrete(labels = c(
+    "1" = "16-24",
+    "2" = "25-34",
+    "3" = "35-44",
+    "4" = "45-54",
+    "5" = "55-64",
+    "6" = ">65"
+  )) +
+  scale_fill_discrete(name = "Internet Used at Library", labels = c("No", "Yes"))
+```
+
+### 4.12.1 Findings
+
+- We found that in the age range of `16-24` the respondents have used the internet for personal non-business uses in library the most in all the age ranges.
+
+- We found that the age range ` older than 65` have used the internet the least for personal purposes.
+
+- We found that the respondents in the age range of `45-54` have not used the library for personal purposes, which is the highest in all the age categories.
+
+- we found that the age range `25-34` and `55-64` also have one of the highest number of respondents that have not used the internet for any personal purposes and their count is relatively similar in number.
+
+- Finally, we found that almost all the age ranges of the respondents are almost normally distributed with respect to internet usage at library.
+
+### 4.12.2 Explanation
+
+The findings show that the age range `16-24` tend to use the library's internet for personal and non business purposes mainly because people in that age range tend to attend schools, colleges, and universities and they may tend to use the library for internet more often than others. The age group `45-54` utilizes library internet for personal purposes less frequently than other age groups, likely because they may not approach a library for internet access in the first place since they may not be students or because they may use the internet at home or at work.
+
+## 4.13 Analysing internet usage from friends or neighbours home
+
+ We want to analyse the internet usage pattern of the respondents specifically understanding how different age category of the respondents have accessed internet for a friends' or Neighbors' home. This is done by analyzing data to conclude how many respondents have or haven't used the internet and segregate them based on their age category.
+```{r echo=TRUE}
+#Create a subset for the columns
+Internet_friendsset <- locationofUse[c(5, 22)]
+# Change the datatype of the variables for processing
+Internet_friendsset$Age <-
+  as.character(Internet_friendsset$Age)
+Internet_friendsset$Internet_Usage_Neighbours <-
+  as.character(Internet_friendsset$Internet_Usage_Neighbours)
+#Create a plot with internet usage Friends or Neighbor's home, and age group
+Internet_friendsset %>%
+  filter(!is.na(Internet_Usage_Neighbours)) %>% # filter values
+  ggplot(aes(Age, ..count..)) + geom_bar(aes(fill = Internet_Usage_Neighbours), colour =
+                                           "Black") + theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) +
+  labs(title = " Fig:10 Internet Usage at Friends or Neighbor's home", x = "Age Groups", y =
+         "Count") +
+  scale_x_discrete(labels = c(
+    "1" = "16-24",
+    "2" = "25-34",
+    "3" = "35-44",
+    "4" = "45-54",
+    "5" = "55-64",
+    "6" = ">65"
+  )) +
+  scale_fill_discrete(name = "Usage at Friends'/ Neighbor's home", labels = c("No", "Yes"))
+```
+
+### 4.13.1 Findings
+
+- We found that the respondents in the age of `16-24` are the highest once to use internet at a friends' or neighbors' home with a count of `750` respondents.
+
+- We found that the respondents in the age of `25-34` are in equal number in using and not using internet from a friends' or neighbors' home with a count of `750` respectively.
+
+- We found that respondents in the age of `35-44` are showing a decline in the usage from a friends' or neighbors' home with Yes being around `450` and No around `750`.
+
+- We also found that consecutive respondents of ages `[45-54 and 55-64]` are also showing a downward trend in using the internet from a friends' or neighbors' place.
+
+- Finally, we found that respondents of age `65 and above` are the once that used internet the least from a friends' or neighbors' place. Less than `100` people have said yes and more that `250` people have said no.
+
+### 4.13.2 Explanation
+
+The results show that respondents aged `16-24` are the once that use internet at friends or a neighbors place. This might be due to the fact that the younger generation tend to work and relax in groups and do group studies, play online games with friends, watch movies together at friends place. So, all these accounts to internet usage at friends or neighbors place. Also, older people tend to stay isolated and alone so it is evident that the use the least internet from a friends or neighbors place.
+
+## 4.14 Analysing number of people in a household across all provinces
+
+We want to analyse the number of people `[1,2,3, or more than 4]` in a household based on each province. The respondents have provided information on how many people live with them as part of their household which can be used to analyse the above question. This can further help us to understand the household dynamics of each province in future.
+
+```{r}
+#Create a subset for the columns
+Householdsset <- locationofUse[c(2, 10)]
+# Change the datatype of the variables for processing
+Householdsset$Province <-
+  as.character(Householdsset$Province)
+Householdsset$Houshold_Type <-
+  as.character(Householdsset$Houshold_Type)
+# Create a plot with no.of people in household and provinces
+Householdsset %>%
+  filter(!is.na(Houshold_Type)) %>% # filter values
+  ggplot(aes(Province, ..count..)) + geom_bar(aes(fill = Houshold_Type), position = "stack", colour="Black") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 13)) + labs(title = " Fig:11 No.of People in Household Across the Provinces", x = "Provinces", y =
+         "Count") +
+  scale_x_discrete(
+    labels = c(
+      "10" = "Newfoundland and Labrador",
+      "11" = "Prince Edward Island",
+      "12" = "Nova Scotia",
+      "13" = "New Brunswick ",
+      "24" = "Quebec",
+      "35" = "Ontario",
+      "46" = "Manitoba",
+      "47" = "Saskatchewan",
+      "48" = "Alberta",
+      "59" = "British Columbia"
+    )
+  ) +
+  scale_fill_discrete(name = "No.of People in Household", labels = c("1 Persons", "2 Persons", "3 Persons", "4 or more persons")) +
+  coord_flip()
+```
+
+### 4.14.1 Findings
+
+- We found that `Ontario[35]` had the largest respondent data and `1 or 2 or 3 people` living in a household was the highest in the region with more than `6000` plus respondents responding that no more than 3 people lived in their household, which contributes to around `98%` of the responses.
+
+- we found that `Quebec[24]` also had similar ratios as of `Ontario` where major chuck of their respondents responded that no more than 3 people lived in their household.
+
+- we also found that `British Columbia[59]` and `Alberta[48]` were the next once in order that had the maximum number of respondents stating no more than 3 people in the household and the count was around `3000`.
+
+- We also found that `Prince Edward Island[11]` was the only province that had the lowest total respondent count around `700` and they had a very minimal portion of respondents who have `4 or more` people in their household.
+
+- Finally, all the provinces had a very little portion of respondents who responded stating that they have `4 or more` people in their household.
+
+### 4.14.2 Explanation
+ 
+The provinces `Ontario[35]` and `Quebec[24]`'s significant number of respondents had 3 or less people in the homes. This can be because urbanization has increased the complexity of living with a combined family due to work, financial, and personal reasons. So, the families might not be willing to say together or even have large families. As the results show that all the provinces have a very less portion of people living together [more than 4] the findings are inline with the results. 
+
+# 5. Predictive Analysis
+We want to understand the patterns in the variables and their relationships to one another as part of the predictive analysis. To analyze the data, we'd like to employ a few classification and regression algorithms, like logistic, decision trees, etc.
+
+## 5.1 Logistic Regression analysis on Internet usage at home
+The logistic model will help us understand the influence of variables like province, community, gender, age, education and employment on the dichotomous variable like internet usage at home. It also helps us determine the probability between any two classes. For that, we have create the below model with the variables mentioned about to understand their influence on internet usage at home.
+
+- We have subsetted the variables into a new data frame called `log_Homeusage_set_data` to make changes to the variables and not influence the main dataframe.
+- We have changed the datatype of the variable into `factor` to compensate their ordinal nature.
+- We have omitted the 'NA' values and processed the dataframe into test and training dataset.
+- We have used `Downsampling` to make the model more efficient and also make sure that the data is `not imbalanced` which if not identified can fail to recognize the minority class and cause the model to be biased and may not produced the desired results.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Create a subset for the columns
+log_Homeusage_set_data <- locationofUse[c(2, 4, 5, 6, 7, 9, 16)]
+# Change the datatype of the variables for processing
+log_Homeusage_set_data$Province <-
+  as.character(log_Homeusage_set_data$Province)
+log_Homeusage_set_data$Community <-
+  as.character(log_Homeusage_set_data$Community)
+log_Homeusage_set_data$Gender <-
+  as.factor(log_Homeusage_set_data$Gender)
+log_Homeusage_set_data$Age <-
+  as.factor(log_Homeusage_set_data$Age)
+log_Homeusage_set_data$Education <-
+  as.factor(log_Homeusage_set_data$Education)
+log_Homeusage_set_data$Employment <-
+  as.factor(log_Homeusage_set_data$Employment)
+log_Homeusage_set_data$Internet_Usage_Home <-
+  as.factor(log_Homeusage_set_data$Internet_Usage_Home)
+#Omit NA values
+x <- na.omit(log_Homeusage_set_data)
+# Splitting data set
+split <- sample.split(x, SplitRatio = 0.8)
+trainData <- subset(x, split == "TRUE")
+testData <- subset(x, split == "FALSE")
+# Down Sample
+set.seed(100)
+'%ni%' <- Negate('%in%')  # define 'not in' function
+down_train <- downSample(x = trainData[, colnames(trainData) %ni% "Class"],
+                         y = trainData$Internet_Usage_Home)
+home_Usage_model_one <- glm(Internet_Usage_Home ~ Province + Community + Gender + Education + Age + Employment, 
+                      data = down_train, 
+                      family = "binomial")
+```
+
+We have used sjPlot (version 2.8.4)'s  `tab_model` regression presentation package to display the summary of the logistic model's output below.
+
+```{r message=FALSE, warning=FALSE}
+tab_model(home_Usage_model_one, show.r2 = FALSE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("First Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic"
+  
+)
+```
+### 5.1.1 Reasoning to construct the model
+The main objective to build this model is to understand the influence of how province, community, gender, age can affect the internet usage at home along with education levels and the employment status of the individual.
+
+### 5.1.2 Findings [First Model]
+- We found that the `Education[2] and Education[3]` which are `College or post secondary` and `University certificate or degree` has lower P values and good significance in the model.
+
+- We have also found that the odds ratio which is an exponent of `EXP(Estimates)`. The Education 2 and 3 has the highest odds ratio compared to all the other variables.
+
+- When odds ratio is greater than 1 it describes a positive relation. Which means in this scenario as the education level increases the odds of using internet at home for personal non-business purposes is more likely to increase.
+
+- Based on the preliminary model we can say that education is highly influencing the usage of internet. 
+
+### 5.1.3 Constructing Additional Models
+ We would like to construct few other combination of models to analyse the optimal variables that contribute to the internet usage
+
+**First Model**: Internet Usage at Home = Province + Community + Gender + Education + Age + Employment  [***Already Constructed***]
+
+**Second Model**: Internet Usage at Home = Education + Age + Employment  
+
+**Third Model**: Internet Usage at Home = Education
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+home_Usage_model_two <- glm(Internet_Usage_Home ~ Education + Age + Employment, 
+                      data = down_train, 
+                      family = "binomial")
+tab_model(home_Usage_model_two, show.r2 = FALSE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("Second Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic")
+```
+
+### 5.1.4 Findings [Second Model]
+- We found that `Education[2] and Education[3]` which are `College or post secondary` and `University certificate or degree` continued to have lower P values and are significant.
+
+- We have also found that  the odds ratio which is an exponent of `EXP(Estimates)`. The Education 2 and 3 has the highest odds ratio compared to all the other variables.
+
+- When odds ratio is greater than 1 it describes a positive relation. Which means in this scenario `[Model 2]` as the education level increases the odds of using internet at home for personal non-business purposes is more likely to increase.
+
+- Based on this secondary model we can still say that education is highly influencing the usage of internet when compare to other variables.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+home_Usage_model_three <- glm(Internet_Usage_Home ~ Education, 
+                      data = down_train, 
+                      family = "binomial")
+tab_model(home_Usage_model_three, show.r2 = FALSE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("Third Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic")
+```
+
+### 5.1.5 Findings [Third Model]
+ We found that `Education[2] and Education[3]` which are `College or post secondary` and `University certificate or degree` variables are significantly influencing the Internet usage at home and the odds ratio for University certificate or degree which is Education[3] seems to have greater odds than [Education 2] which means has a greater influence on the odds of outcome. 
+
+### 5.1.6 Comparing Models
+All the three models are compared for effective interpretation.
+```{r echo=TRUE, message=FALSE, warning=FALSE, results='asis'}
+
+tab_model(home_Usage_model_one, home_Usage_model_two, home_Usage_model_three, show.r2 = FALSE,show.obs = FALSE,CSS = css_theme("cells"),
+           dv.labels = c("First Model", "Second Model", "Third Model"),
+  string.pred = "Coeffcient",
+  string.ci = "Conf. Int (95%)",
+string.p  = "P-Values"
+)
+
+```
+
+### 5.1.7 Findings [All Models]
+- From the three models we found that not all variables where influencing the Internet Usage at Home variable and few of the variables in 3 models had odd ratio greater than 1.
+
+- We also found that first model had education and age as influencing factors with significant p values and odds ratio greater than 1.
+
+- We also found that education and age continued to be significant influences in the models.
+
+- Finally, the third model was only constructed with education and was found to have significant influence on the internet usage at home.
+
+### 5.1.8 Likelihood Ratio Test (LR Test) 
+ We have rendered a LR test on Second Model and Third Model to understand the goodness of fit of these two regression models.
+```{r}
+lrtest(home_Usage_model_two, home_Usage_model_three)
+```
+
+### 5.1.9 Findings
+- we can see from the output that the likelihood ratio test has a p-value greater than 0.05. As a result, we can conclude that the model with one predictors outperforms the model with three predictor in terms of fit.
+
+### 5.1.10 Regression Diagnostics
+Now that we have the final model we can further analyse to explore the goodness of the model. 
+
+### 5.1.11 Confusion Matrix
+- We created a confusion matrix to analyse the performance of the model and will help us understand Recall, Precision, Specificity, Accuracy of the generated model.
+- The model had predicted greater true positives than false negatives`[Type 2 Error]`.
+
+- The model predicted internet was used from home for personal non business use and it actually was [TP].
+
+- The model has predicted more true negatives than false positives `[Type 1 Error]`.
+
+- Also, the model predicted internet was not used from home for personal non business use and it actually was not [TN]
+```{r message=FALSE, warning=FALSE}
+#Down sampling
+down_train_two<- downSample(x = testData[, colnames(testData) %ni% "Class"],
+                         y = testData$Internet_Usage_Home)
+predicted <- predict(home_Usage_model_three, down_train_two, type="response")
+# Changing probabilities
+predicted <- ifelse(predicted >0.5, 1, 0)
+table(down_train_two$Internet_Usage_Home, predicted)
+
+```
+### 5.1.12 Accuracy, Sensitivity, Specificity, AUC, Precision data
+The above data is needed to analyse the effectiveness of the model and its results.
+
+We found that 
+
+**Accuracy** - The accuracy  was a decent one of this model even though it is low the model is sustainable. 
+```{r}
+tp = length(which((predicted == 1) & (down_train_two$Internet_Usage_Home == 1)))
+tn = length(which((predicted == 0) & (down_train_two$Internet_Usage_Home == 0)))
+fp = length(which((predicted == 1) & (down_train_two$Internet_Usage_Home == 0)))
+fn = length(which((predicted == 0) & (down_train_two$Internet_Usage_Home == 1)))
+logitaccuracy <- (tp+tn)/(tp+tn+fp+fn)
+logitsensitivity <- tp/(tp+fn)
+logitspecificity <- tn/(tn+fp)
+logitprecision <- tp/(tp+fp)
+logitaccuracy
+```
+
+
+**Sensitivity** - Sensitivity is relatively low in this final model.  
+
+```{r}
+logitsensitivity
+```
+
+
+**Specificity** - Specificity is good in this model and states that there are fewer false positives in this model.  
+
+```{r}
+logitspecificity
+```
+
+
+**Precision** -  The Precision seems to be decent for the generated model.
+
+```{r}
+logitprecision
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(pROC)
+roc1 <- roc(down_train$Internet_Usage_Home, fitted(home_Usage_model_three))
+plot.roc(roc1, print.auc = TRUE, legacy.axes = TRUE)
+```
+
+
+## 5.2 Classifying Internet users based on Education, Employment and House Size using Decision Tree
+We wanted to use a decision tree to predict the class or the value of the target variable which is Internet user in this scenario. We want to understand how education, employment, and house size classifies the internet user.
+
+- Initially, we created a `subset` to addin the variables `[Education]`,`[Employment]` and `[House Size]` to render a decision tree on Internet user.
+
+- We divided the dataset into test and train sets.
+
+- Decision tree uses `Information gain` to decide which variable to use first to apply the logic. Information gain is equal to the Entropy of the parent node minus the weighted average of the Entropy of the child node. That being said, Entropy is the measure of impurity in the dataset.
+
+- Apart from the `Entropy` split type, `Gini Index` and `Classification Error Rates` are also used to estimate the information gain. 
+
+```{r}
+#Create a subset for the columns
+log_Internetuser_set_data_two <- locationofUse[c(7,9,11,14)]
+# Change the datatype of the variables for processing
+index <- 1:ncol(log_Internetuser_set_data_two)
+log_Internetuser_set_data_two[ , index] <- lapply(log_Internetuser_set_data_two[ , index], as.factor)
+# Set random seed
+set.seed(1)
+
+# Shuffling the dataset
+n <- nrow(log_Internetuser_set_data_two)
+dfs <- log_Internetuser_set_data_two[sample(n),]
+
+# Split the data in train and test
+train_indices <- 1:round(0.7 * n)
+train <- dfs[train_indices, ]
+test_indices <- (round(0.7 * n) + 1):n
+test <- dfs[test_indices, ]
+```
+
+### 5.2.1 Building the Model and Visualizing
+We have built the model using the training data and have used the `rpart` library to process the decision tree.
+```{r}
+# Model
+decision_tree <- rpart(Internet_User ~ Education + Employment + House_Size,
+                       method ='class',
+                       data = train, control=rpart.control(minsplit=50),
+                       parms = list(split = "information"))
+# Visualize
+rpart.plot(decision_tree, type=4, extra=2, clip.right.labs=FALSE,
+           varlen=0, faclen=0)
+```
+
+### 5.2.2 Findings
+- The top node denotes internet users. `12303` out of `16225` people use the internet. 
+
+- After splitting the data by employment type, we see that `9056` out of `10229` users with employment type 1 or 2 use the internet, whereas `3247` out of `5996` people with employment type 3 use the internet. 
+
+- On splitting the employment type 3 node further using education, we could observe that `1922` out of `2742` people with education type 2 or 3 use the internet, whereas `1929` out of `3254` people with education type 1 use the internet. 
+
+- By further splitting this node with house type, `468` out of `646` people with house size 3 or 4 use the internet, and `1751` out of `2608` people with house size 1 or 2 use the internet.
+
+- We can conclude that employed people utilize the internet more than unemployed or out-of-work people. People in university or college use the internet more than those in high school. 
+
+- Also, Individuals in households with three or more people use the internet at a higher rate than those in households with one or two people.
+
+
+### 5.2.3 Predictions
+We predicted the confidence and accuracy of the model with the test data to see how well the model fits. 
+```{r}
+#Prediction
+pred_test <- predict(decision_tree, test, type = "class")
+
+confidence <- table(test$Internet_User, pred_test)
+
+accuracy <- sum(diag(confidence))/sum(confidence)
+confidence
+accuracy
+```
+ We created a confusion matrix to analyse the performance of the model [2 here represents the zero value (which is internet not used)]
+ 
+- The model had predicted greater true positives than false negatives`[Type 2 Error]`.
+
+- The model had excellently predicted if the user was an Internet user  and it actually was [TP].
+
+- The model has predicted more true negatives than false positives `[Type 1 Error]`.
+
+- Also, The model had excellently predicted if the user was not an Internet user it actually was not [TN]
+
+- Finally the `Accuracy` of the model was `0.831` which states that this is a good model.
+
+
+
+## 5.3 Classifying Internet usage based on Household Information, Student Status, Employment and Region using Decision Tree
+
+- We wanted to use a decision tree to predict the class of the target variable which is Internet user use in this scenario. We want to understand how Household Information, Student Status, Employment and Region classifies the internet user or not.
+
+- We divided the dataset into test and train sets.
+```{r}
+#Create a subset for the columns
+Internet_set_data_two <- locationofUse[c(10,11,9,8,13,4,2,14)]
+# Change the datatype of the variables for processing
+index <- 1:ncol(Internet_set_data_two)
+Internet_set_data_two[ , index] <- lapply(Internet_set_data_two[ , index], as.factor)
+# Set random seed
+set.seed(1)
+
+# Shuffling the dataset
+n <- nrow(Internet_set_data_two)
+dfs <- Internet_set_data_two[sample(n),]
+
+# Split the data in train and test
+train_indices <- 1:round(0.7 * n)
+train <- dfs[train_indices, ]
+test_indices <- (round(0.7 * n) + 1):n
+test <- dfs[test_indices, ]
+
+```
+
+### 5.3.1 Building the Model and Visualizing
+We have built the model using the training data and have used the `rpart` library to process the decision tree.
+
+```{r}
+# Model
+decision_tree_two <- rpart(Internet_User ~ Houshold_Type + House_Size +
+                        Employment + Student_Status + Student_Household +
+                         Community + Province,
+                       method ='class',
+                       data = train, control=rpart.control(minsplit=50),
+                       parms = list(split = "information"))
+# Visualize
+rpart.plot(decision_tree_two, type=4, extra=2, clip.right.labs=FALSE,
+           varlen=0, faclen=0)
+```
+
+### 5.3.2 Findings
+
+- We have split the data depending on employment type, student status, household type, province, and community. 
+
+- We can infer from this that those who are fully employed or have just been laid off are more likely to utilize the internet than those not in the workforce. Students are more likely to use the internet than non-students. 
+
+- In terms of household type, households with one person are more likely to utilize the internet than other household groups. Internet usage is higher in Nova Scotia, Ontario, and British Columbia. 
+
+- We can observe by further dividing the data by community that rural locations in the rest of the country have a higher chance of being internet users.
+
+### 5.3.3 Predictions
+We predicted the confidence and accuracy of the generated model with the test data to see how well the model fits. 
+
+```{r}
+#Prediction
+pred_test <- predict(decision_tree_two, test, type = "class")
+
+confidence <- table(test$Internet_User, pred_test)
+
+accuracy <- sum(diag(confidence))/sum(confidence)
+confidence
+accuracy
+```
+
+ We created a confusion matrix to analyse the performance of the model [2 here represents the zero value (which is internet not used)]
+ 
+- The model had predicted greater true positives than false negatives`[Type 2 Error]`.
+
+- The model had excellently predicted if the user was an Internet user  and it actually was [TP].
+
+- The model has predicted more true negatives than false positives `[Type 1 Error]`.
+
+- Also, The model had excellently predicted if the user was not an Internet user it actually was not [TN]
+
+- Finally the `Accuracy` of the model was `0.8` which states that this is a decent model.
+
+## 5.4 Logistic Regression analysis on Gender of the survey taker
+
+- This logistic model will help us understand the influence of variables like `Region`, `Education`, and `Labour Force` on dichotomous variable like the gender of the survey taker. It also helps us determine the probability between any two classes. 
+
+- For that, we have create the below model with the variables mentioned about to understand their influence of the variables on gender. This is done to understand how education and current work status influence the gender.
+
+```{r}
+#Create a subset for the columns
+log_gender_set_data <- locationofUse[c(3,6,7,9)]
+index <- 1:ncol(log_gender_set_data)
+log_gender_set_data[ , index] <- lapply(log_gender_set_data[ , index], as.factor)
+x <- na.omit(log_gender_set_data)
+# Splitting data set
+split <- sample.split(x, SplitRatio = 0.8)
+trainData <- subset(x, split == "TRUE")
+testData <- subset(x, split == "FALSE")
+gender_model_one <- glm(Gender ~ Region + Education + Employment, 
+                      data = trainData, 
+                      family = "binomial")
+
+```
+
+We have used sjPlot  `tab_model` regression presentation package to display the summary of the logistic model's output below.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tab_model(gender_model_one, show.r2 = FALSE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("First Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic"
+  
+)
+```
+
+
+### 5.4.1 Findings [First Model]
+- We found that the `Region` have a significant p value and `Education` and `Employment` which are `College or post secondary` and `University certificate or degree` and labor status has lower P values and good significance in the model.
+
+- We have also found that the  the odds ratio which is an exponent of `EXP(Estimates)`. The Education 2 and Employment 3 has the highest odds ratio compared to all the other variables.
+
+- When odds ratio is greater than 1 it describes a positive relation.
+
+### 5.4.2 Constructing Additional Models
+We would like to construct few other combination of models to analyse the optimal variables.
+
+**First Model**: Gender ~ Region + Education + Employment  [***Already Constructed***]
+
+**Second Model**: Gender ~ Education + Employment
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+gender_model_two <- glm(Gender ~ Education + Employment, 
+                      data = trainData, 
+                      family = "binomial")
+tab_model(gender_model_two, show.r2 = FALSE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("Second Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic")
+```
+
+### 5.4.3 Findings [Second Model]
+
+We found that the  `Education[2] and Employment[2,3]` which are `College or post secondary` and `University certificate or degree` and different labor status has lower P values and good significance in the model.
+
+### 5.4.4 Comparing Models
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tab_model(gender_model_one, gender_model_two, show.r2 = FALSE,show.obs = FALSE,CSS = css_theme("cells"),
+           dv.labels = c("First Model", "Second Model"),
+  string.pred = "Coeffcient",
+  string.ci = "Conf. Int (95%)",
+string.p  = "P-Values"
+)
+
+```
+
+### 5.4.5 Findings [All Models]
+- From the two models we found that most of the variables have an influence on gender type.
+
+- We also found that first model had education, region and employment has an influencing factors with significant p values and odds ratio greater than 1 [for few categories].
+
+- We also found that `Education` and `Employment` continued to be significant influences in the models.
+
+### 5.4.6 Regression Diagnostics
+Now that we have the final model we can further analyse to explore the goodness of the model. 
+```{r message=FALSE, warning=FALSE}
+
+predicted <- predict(gender_model_two, testData, type="response")
+# Changing probabilities
+predicted <- ifelse(predicted >0.5, 1, 0)
+```
+### 5.4.7 Accuracy, Sensitivity, Specificity, AUC, Precision data
+The above data is needed to analyse the effectiveness of the model and its results.
+
+We found that 
+
+**Accuracy** - The accuracy is low for this model. 
+```{r}
+tp = length(which((predicted == 1) & (testData$Gender == 1)))
+tn = length(which((predicted == 0) & (testData$Gender == 2)))
+fp = length(which((predicted == 1) & (testData$Gender == 2)))
+fn = length(which((predicted == 0) & (testData$Gender == 1)))
+logitaccuracy <- (tp+tn)/(tp+tn+fp+fn)
+logitsensitivity <- tp/(tp+fn)
+logitspecificity <- tn/(tn+fp)
+logitprecision <- tp/(tp+fp)
+logitaccuracy
+```
+
+
+**Sensitivity** - Sensitivity is decent in this final model.  
+
+```{r}
+logitsensitivity
+```
+
+
+**Specificity** - Specificity is low for this model.  
+
+```{r}
+logitspecificity
+```
+
+
+**Precision** -  The Precision seems to be decent for the generated model.
+
+```{r}
+logitprecision
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(pROC)
+roc1 <- roc(trainData$Gender, fitted(gender_model_two))
+plot.roc(roc1, print.auc = TRUE, legacy.axes = TRUE)
+```
+
+
+### 5.4.7.1 Chi-Square Test of Independence for Education and Employment
+
+Additionally to the generated model between gender, education, employment, and region. we would like to analyse if `Education` and `Employment` have a significant relation between each other.
+```{r}
+chisq <- chisq.test(locationofUse$Education, locationofUse$Employment)
+chisq
+```
+
+The generated Chi-Square test states that the P Value is less than `0.05` which signifies that there is a significant relationship between these two variables.
+
+## 5.5 Logistic Regression analysis on Internet Usage at School
+This model is being constructed to analyse what factors influence the Internet usage at school for personal non-business purposes.
+
+```{r}
+#Create a Subset
+Internet_Usage_School_Data <- locationofUse[c(5,8,13,18)]
+Internet_Usage_School_Data <- na.omit(Internet_Usage_School_Data)
+#Change to Factors
+index <- 1:ncol(Internet_Usage_School_Data)
+Internet_Usage_School_Data[ , index] <- lapply(Internet_Usage_School_Data[ , index], as.factor)
+#Split the data into training and test data
+set.seed(1)
+trainingrows <- sample(nrow(Internet_Usage_School_Data), nrow(Internet_Usage_School_Data) * 0.8)
+trainingdata <- Internet_Usage_School_Data[trainingrows, ]
+testdata <- Internet_Usage_School_Data[-trainingrows, ]
+
+# logistic regression model 
+logistic_model <- glm(Internet_Usage_School ~ Age + Student_Status  +  
+                            Student_Household ,
+                          data = trainingdata, family = binomial(link = "logit"))
+```
+
+### 5.5.1 Logistic Model
+
+We have using sjPlot `tab_model` regression presentation package to display the summary of the logistic model's output below.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tab_model(logistic_model, show.r2 = TRUE, show.se = TRUE, show.std = TRUE, show.stat = TRUE, show.obs = FALSE,
+  show.aic = TRUE,
+           dv.labels = c("First Model"),
+  string.pred = "Coeffcient",
+  string.ci = "CI (95%)",
+  string.p  = "P-Values",
+  string.se = "Std Err",
+  string.stat = "Statistic"
+  
+)
+```
+
+
+### 5.5.2 Findings
+
+We found that the `Age` have a significant P value and `Student Status` and `Student Household` has lower P values and good significance in the model.
+
+### 5.5.3 McFadden's pseudo R squared Test
+The test is used to identify the model fit
+```{r}
+# Calculating McFadden's pseudo R squared
+rsquare <- 1 - (logistic_model$deviance / logistic_model$null.deviance)
+rsquare
+```
+
+With a R Square value is in the range of 0.2 and 0.4 indicates as an excellent model fit
+
+### 5.5.4 Regression Diagnostics
+We are generating prediction for training data and receiver operating characteristic curve
+```{r}
+#Generating predictions for training data
+pred <- predict(logistic_model, type = "response")
+#Generating a receiver operating characteristic curve for the training data
+library(ROCR)
+predObj <- prediction(pred, trainingdata$Internet_Usage_School)
+rocObj <- performance(predObj, measure = "tpr", x.measure = "fpr")
+aucObj <- performance(predObj, measure = "auc")
+plot(rocObj, main = paste("Area under the curve:", round(aucObj@y.values[[1]], 4)))
+library(pROC)
+```
+From the plot we can see that the ROC curve is closer to the top left part of the square and it is closer to 1, which indicates that the model performs well.
+
+### 5.5.5 Confusion Matrix
+
+We created a confusion matrix to analyse the performance of the model 
+```{r}
+#Generating predictions for test data
+pred_test <- predict(logistic_model, testdata, type = "response")
+
+#The above code generates the probabilities for the test data. Next, we will convert the probabilities to zeros and ones. so that we evaluate the model performance.
+
+#Creating a confusion matrix
+logitpredictions = rep(0,length(pred_test))
+logitpredictions[pred_test > 0.5] <- 1
+table(logitpredictions, testdata$Internet_Usage_School)
+```
+
+- The model had predicted greater true positives[246] than false negatives`[Type 2 Error]`.
+
+- The model had excellently predicted if the user was an Internet user at school  and it actually was [TP].
+
+- The model has predicted more true negatives[2862] than false positives `[Type 1 Error]`.
+
+- Also, The model had excellently predicted if the user was not an Internet user at school it actually was not [TN]
+
+### 5.5.6 Accuracy, Sensitivity, Specificity, and Precision data
+This data is needed to analyse the effectiveness of the model and its results.
+We found that 
+
+**Accuracy** - The accuracy is good this model.
+```{r}
+#Assess model performance
+tp = length(which((logitpredictions == 1) & (testdata$Internet_Usage_School == 1)))
+tn = length(which((logitpredictions == 0) & (testdata$Internet_Usage_School == 0)))
+fp = length(which((logitpredictions == 1) & (testdata$Internet_Usage_School == 0)))
+fn = length(which((logitpredictions == 0) & (testdata$Internet_Usage_School == 1)))
+fn
+logitaccuracy <- (tp+tn)/(tp+tn+fp+fn)
+logitsensitivity <- tp/(tp+fn)
+logitspecificity <- tn/(tn+fp)
+logitprecision <- tp/(tp+fp)
+logitaccuracy
+```
+
+
+**Sensitivity** - Sensitivity is relatively decent in this model.  
+
+```{r}
+logitsensitivity
+```
+
+**Specificity** - Specificity is good in this model and states that there are fewer false positives in this model.  
+
+```{r}
+logitspecificity
+```
+
+
+**Precision** -  The Precision is good in this model.
+
+```{r}
+logitprecision
+```
+# 6. Summary & Conclusion
+- In conclusion we would like to state the data collection had most number of entries from the Province `Ontario` and the age category of `35 or order` account for the most number of respondents.
+
+- Also `Ontario` had the most number of Internet users with highest being more than `5 years` and is followed by `Quebec`.
+
+- We also found that the there were more respondents using internet from work for personal use in all the provinces.
+
+- There were more number of internet users from the age range `35 to 54` in all the provinces.
+
+- The distribution of male and female in this survey are almost equal with slight differences in the values from age `65` and above.
+
+- We also found that more number of females have used Internet for personal non business uses at school than males.
+
+- Respondents in the age range of `16-24` had the highest Internet usage at library and at friends/ Neighbor's home for personal non-business usage.
+
+- We also found that `Education` and `Employment` are two main influencing factors that contribute to Internet usage at home and work for personal non business usage.
+
+In Conclusion, all the above data can be used by the government to introduce evidence-based policy-making, resource management, and development planning in all of the provinces. This data can also be used to provide effective, affordable, and more reliable internet connection. It can also improve online privacy and protect from any security risks and support to overall Canada's digital development. 
+
+# 7. References
+Price, A. C. (2012, April 16). The AAVSO 2011 Demographic and Background Survey. arXiv.org. 
+https://arxiv.org/abs/1204.3582
+
+Nair, M. (2022, July 18). Understanding The Canadian Education System. University of the People. https://www.uopeople.edu/blog/understanding-the-canadian-education-system/
+
+Gender-related differences in desired level of educational attainment among students in Canada. (2021, September 22). https://www150.statcan.gc.ca/n1/pub/36-28-0001/2021009/article/00004-eng.htm
+
+Guo, J. (2016, January 28). The serious reason boys do worse than girls. Washington Post. https://www.washingtonpost.com/news/wonk/wp/2016/01/28/the-serious-reason-boys-do-worse-than-girls/
